@@ -40,7 +40,7 @@ def get_data_loader(num_frames, target_size, num_classes, batch_size):
     train_dataset = VideoDataset(
         train_path, num_frames=num_frames, target_size=target_size, num_classes=num_classes)
     val_dataset = VideoDataset(
-        val_path, num_frames=num_frames, target_size=num_frames, num_classes=num_classes)
+        val_path, num_frames=num_frames, target_size=target_size, num_classes=num_classes)
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=cpus)

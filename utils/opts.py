@@ -43,7 +43,7 @@ def parse_opts():
         '--target_size',
         type=int,
         nargs=2,
-        default=(224, 224),
+        default=112,
         help='Target size for the video frames.'
     )
     parser.add_argument(

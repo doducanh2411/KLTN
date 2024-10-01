@@ -2,3 +2,4 @@ kaggle
 torch
 torchvision
 numpy
+decord

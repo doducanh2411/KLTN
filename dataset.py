@@ -8,20 +8,20 @@ from decord import VideoReader
 
 
 class VideoDataset(Dataset):
-    def __init__(self, root_dir, num_frames=900, target_size=(112, 112), num_classes=4):
+    def __init__(self, root_dir, num_frames=900, target_size=112, num_classes=4):
         """
         Initialize the dataset.
 
         Args:
             root_dir (str): Path to the directory containing subdirectories (classes).
             num_frames (int, optional): Number of frames to be used. Defaults to 900.
-            target_size (tuple, optional): Desired size of the output images. Defaults to (112, 112).
+            target_size (int, optional): Desired size of the output images. Defaults to 112.
             num_classes (int, optional): Number of classes for classification. Defaults to 4.
         """
 
         self.root_dir = root_dir
         self.num_frames = num_frames
-        self.target_size = target_size
+        self.target_size = (target_size, target_size)
         self.num_classes = num_classes
 
         self.video_files = []
