@@ -1,7 +1,41 @@
 import time
-from tqdm import tqdm
 import torch
+import os
+import json
+from tqdm import tqdm
 from utils.color import colorstr
+from utils.make_dataset import get_data_loader
+from utils.get_model import get_model
+
+
+def train(opts):
+    train_loader, val_loader = get_data_loader(
+        opts.num_frames, opts.target_size, opts.num_classes, opts.batch_size)
+
+    model = get_model(opts.model, opts.num_classes,
+                      opts.num_frames, opts.target_size)
+
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    trained_model, history = train_model(model, train_loader, val_loader, criterion,
+                                         optimizer, device, num_epochs=opts.epochs)
+
+    # Save model, optimizer, and history
+    output_dir = 'output'
+    os.makedirs(output_dir, exist_ok=True)
+
+    model_class_name = trained_model.__class__.__name__
+
+    torch.save(trained_model.state_dict(),
+               f'{output_dir}/{model_class_name}_model.pth')
+    torch.save(optimizer.state_dict(),
+               f'{output_dir}/{model_class_name}_optimizer.pth')
+
+    history_file = f'{output_dir}/{model_class_name}_history.json'
+    with open(history_file, 'w') as f:
+        json.dump(history, f)
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10):
@@ -17,9 +51,9 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
         device (str, optional): Device to run the training on, either "cuda" or "cpu". Default is "cuda".
         num_epochs (int, optional): Number of epochs to train the model. Default is 10.
     """
-    print(colorstr("cyan", "bold",
+    print(colorstr("white", "bold",
           f"Training {model.__class__.__name__} model !"))
-    print(colorstr("cyan", "bold",
+    print(colorstr("red", "bold",
           f"Model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters."))
 
     since = time.time()
@@ -116,4 +150,4 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
         )
     )
 
-    return model
+    return model, history

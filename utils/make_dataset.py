@@ -33,7 +33,9 @@ def install_dataset():
 def get_data_loader(num_frames, target_size, num_classes, batch_size):
     cpus = os.cpu_count()
 
-    dataset_path = os.path.join(os.getcwd(), "tikharm-dataset")
+    # dataset_path = os.path.join(os.getcwd(), "tikharm-dataset")
+    dataset_path = os.path.join(
+        "/kaggle/input/tikharm-dataset")  # For kaggle only
     train_path = os.path.join(dataset_path, 'Dataset', 'train')
     val_path = os.path.join(dataset_path, 'Dataset', 'val')
 

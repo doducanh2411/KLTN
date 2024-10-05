@@ -4,6 +4,7 @@ from models.late_fusion import LateFusion
 from models.s3d_cnn import S3D
 from models.single_frame import SingleFrame
 from models.vivit import ViViT
+from models.swin import Swin
 
 
 def get_model(model_name, num_classes, num_frames=None, image_size=None):
@@ -19,5 +20,7 @@ def get_model(model_name, num_classes, num_frames=None, image_size=None):
         return SingleFrame(num_classes)
     elif model_name == "vivit":
         return ViViT(num_classes, image_size, num_frames)
+    elif model_name == "swin":
+        return Swin(num_classes)
     else:
         raise ValueError(f"Model {model_name} not found")
