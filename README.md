@@ -1,7 +1,7 @@
 ## Install requirement
 
 ```
-pip install requirement.txt
+pip install -r requirement.txt
 ```
 
 ## Install dataset
