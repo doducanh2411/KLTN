@@ -10,7 +10,7 @@ class EarlyFusion(nn.Module):
         self.input_channels = num_input_channels
 
         self.cnn = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V2)
-        self.cnn.features[0][0] = nn.Conv2d(num_input_channels, 32, kernel_size=(
+        self.cnn.features[0][0] = nn.Conv2d(num_input_channels * 3, 32, kernel_size=(
             3, 3), stride=(2, 2), padding=(1, 1), bias=False)
         self.cnn.classifier[1] = nn.Linear(
             self.cnn.classifier[1].in_features, 512)

@@ -4,7 +4,7 @@ from torch import nn
 
 class ViViT(nn.Module):
     def __init__(self, num_classes=4, image_size=112, num_frames=900):
-        super().__init__
+        super().__init__()
         self.config = VivitConfig()
         self.config.image_size = image_size
         self.config.num_frames = num_frames
