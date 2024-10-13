@@ -2,46 +2,67 @@ import time
 from tqdm import tqdm
 import torch
 from utils.color import colorstr
-import torch
-from utils.make_dataset import install_dataset, get_data_loader
+from utils.make_dataset import get_data_loader
 from utils.get_model import get_model
-from utils.opts import parse_opts
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
+import os
 
 
-def train(opts):
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
+
+
+def cleanup():
+    dist.destroy_process_group()
+
+
+def train(rank, world_size, opts):
+    setup(rank, world_size)
+
     train_loader, val_loader = get_data_loader(
         opts.num_frames, opts.target_size, opts.num_classes, opts.batch_size)
+
+    train_sampler = DistributedSampler(
+        train_loader.dataset, num_replicas=world_size, rank=rank)
+    val_sampler = DistributedSampler(
+        val_loader.dataset, num_replicas=world_size, rank=rank)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_loader.dataset, batch_size=opts.batch_size, sampler=train_sampler)
+    val_loader = torch.utils.data.DataLoader(
+        val_loader.dataset, batch_size=opts.batch_size, sampler=val_sampler)
 
     model = get_model(opts.model, opts.num_classes,
                       opts.num_frames, opts.target_size)
 
+    model.to(rank)
+    model = DDP(model, device_ids=[rank])
+
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trained_model = train_model(model, train_loader, val_loader, criterion,
-                                optimizer, device, num_epochs=opts.epochs)
+                                optimizer, rank, num_epochs=opts.epochs)
 
-    model_class_name = trained_model.__class__.__name__
-    torch.save(trained_model.state_dict(),
-               f'output/{model_class_name}_model.pth')
-    torch.save(optimizer.state_dict(),
-               f'output/{model_class_name}_optimizer.pth')
+    if rank == 0:
+        output_dir = 'output'
+        os.makedirs(output_dir, exist_ok=True)
+
+        model_class_name = trained_model.__class__.__name__
+        torch.save(trained_model.state_dict(),
+                   f'{output_dir}/{model_class_name}_model.pth')
+        torch.save(optimizer.state_dict(),
+                   f'{output_dir}/{model_class_name}_optimizer.pth')
+
+    cleanup()
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10):
-    """
-    Trains the given model using the provided data loaders, criterion, and optimizer.
-
-    Args:
-        model (torch.nn.Module): The neural network model to be trained.
-        train_loader (torch.utils.data.DataLoader): DataLoader for the training dataset.
-        val_loader (torch.utils.data.DataLoader): DataLoader for the validation dataset.
-        criterion (torch.nn.Module): Loss function to be used during training.
-        optimizer (torch.optim.Optimizer): Optimizer to be used for updating model parameters.
-        device (str, optional): Device to run the training on, either "cuda" or "cpu". Default is "cuda".
-        num_epochs (int, optional): Number of epochs to train the model. Default is 10.
-    """
+def train_model(model, train_loader, val_loader, criterion, optimizer, rank, num_epochs=10):
     print(colorstr("white", "bold",
           f"Training {model.__class__.__name__} model !"))
     print(colorstr("red", "bold",
@@ -56,8 +77,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
         "lr": []
     }
     best_val_acc = 0.0
-
-    model.to(device)
 
     for epoch in range(num_epochs):
         print(colorstr(f"Epoch {epoch}/{num_epochs - 1}:"))
@@ -90,8 +109,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
             )
 
             for videos, labels in _phase:
-                videos = videos.to(device)
-                labels = labels.to(device)
+                videos = videos.to(rank)
+                labels = labels.to(rank)
 
                 optimizer.zero_grad()
 
@@ -123,7 +142,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
                 history["val_loss"].append(epoch_loss)
                 history["val_acc"].append(epoch_acc.item())
 
-                # Cập nhật best validation accuracy
                 if epoch_acc > best_val_acc:
                     best_val_acc = epoch_acc
                     history["best_epoch"] = epoch
