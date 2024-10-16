@@ -6,6 +6,7 @@ import torch
 from utils.make_dataset import install_dataset, get_data_loader
 from utils.get_model import get_model
 from utils.opts import parse_opts
+from torch.cuda.amp import GradScaler, autocast
 
 
 def train(opts):
@@ -58,22 +59,19 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
     best_val_acc = 0.0
 
     model.to(device)
+    scaler = GradScaler()  # Khởi tạo GradScaler
 
     for epoch in range(num_epochs):
         print(colorstr(f"Epoch {epoch}/{num_epochs - 1}:"))
 
         for phase in ["train", "val"]:
             if phase == "train":
-                print(
-                    colorstr("yellow", "bold", "\n%20s" + "%15s" * 3)
-                    % ("Training: ", "gpu_mem", "loss", "acc")
-                )
+                print(colorstr("yellow", "bold", "\n%20s" + "%15s" * 3) %
+                      ("Training: ", "gpu_mem", "loss", "acc"))
                 model.train()
             else:
-                print(
-                    colorstr("green", "bold", "\n%20s" + "%15s" * 3)
-                    % ("Eval: ", "gpu_mem", "loss", "acc")
-                )
+                print(colorstr("green", "bold", "\n%20s" + "%15s" * 3) %
+                      ("Eval: ", "gpu_mem", "loss", "acc"))
                 model.eval()
 
             running_items = 0.0
@@ -96,13 +94,16 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == "train"):
-                    outputs = model(videos)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
+                    with autocast():  # Bọc trong autocast
+                        outputs = model(videos)
+                        _, preds = torch.max(outputs, 1)
+                        loss = criterion(outputs, labels)
 
                     if phase == "train":
-                        loss.backward()
-                        optimizer.step()
+                        # Scale loss và backpropagate
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)          # Cập nhật weights
+                        scaler.update()                 # Cập nhật scaler
 
                 running_items += videos.size(0)
                 running_loss += loss.item() * videos.size(0)
