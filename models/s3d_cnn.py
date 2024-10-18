@@ -10,8 +10,6 @@ class S3D(nn.Module):
         self.num_classes = num_classes
 
         self.cnn = s3d(weights=S3D_Weights.KINETICS400_V1)
-        self.cnn.avgpool = nn.AvgPool3d(
-            kernel_size=(2, 3, 3), stride=1, padding=0)
         self.cnn.classifier = torch.nn.Sequential(
             torch.nn.Dropout(p=0.2, inplace=False),
             torch.nn.Conv3d(1024, 512, kernel_size=(
