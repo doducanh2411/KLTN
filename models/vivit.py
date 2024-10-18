@@ -1,16 +1,14 @@
-from transformers import VivitForVideoClassification, VivitConfig
+from transformers import VivitForVideoClassification
 from torch import nn
 
 
 class ViViT(nn.Module):
-    def __init__(self, num_classes=4, image_size=112, num_frames=900):
+    def __init__(self, num_classes=4):
         super().__init__()
-        self.config = VivitConfig()
-        self.config.image_size = image_size
-        self.config.num_frames = num_frames
-        self.config.num_labels = num_classes
-
-        self.vivit = VivitForVideoClassification(self.config)
+        self.vivit = VivitForVideoClassification.from_pretrained(
+            "google/vivit-b-16x2-kinetics400", interpolate_pos_encoding=True)
+        self.vivit.classifier = nn.Linear(
+            in_features=768, out_features=num_classes, bias=True)
 
     def forward(self, x_3d):
         # (bs, T, H, W, C) => (bs, T, C, H, W)
@@ -18,4 +16,4 @@ class ViViT(nn.Module):
 
         x = self.vivit(x_3d)
 
-        return x
+        return x.logits
