@@ -19,7 +19,7 @@ def get_model(model_name, num_classes, num_frames=None, image_size=None):
     elif model_name == "single_frame":
         return SingleFrame(num_classes)
     elif model_name == "vivit":
-        return ViViT(num_classes, image_size, num_frames)
+        return ViViT(num_classes)
     elif model_name == "swin":
         return Swin(num_classes)
     else:
