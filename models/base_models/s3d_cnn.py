@@ -1,7 +1,7 @@
-from torchvision.models.video import s3d, S3D_Weights
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from torchvision.models.video import s3d, S3D_Weights
 
 
 class S3D(nn.Module):
@@ -24,8 +24,8 @@ class S3D(nn.Module):
         )
 
     def forward(self, x_3d):
-        # (bs, T, H, W, C) => (bs, C, T, H, W)
-        x_3d = x_3d.permute(0, 4, 1, 2, 3)
+        # (BS, T, C, H, W) -> (BS, C, T, H, W)
+        x_3d = x_3d.permute(0, 2, 1, 3, 4)
 
         x = self.cnn(x_3d)
 

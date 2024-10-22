@@ -1,8 +1,6 @@
-from utils.get_model import get_model
-from utils.make_dataset import install_dataset, get_data_loader
 from utils.opts import parse_opts
+from utils.download_dataset import install_dataset
 from train import train
-
 
 if __name__ == '__main__':
     opts = parse_opts()

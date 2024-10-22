@@ -36,7 +36,7 @@ def parse_opts():
     parser.add_argument(
         '--num_frames',
         type=int,
-        default=900,
+        default=32,
         help='Number of frames to sample from each video.'
     )
     parser.add_argument(

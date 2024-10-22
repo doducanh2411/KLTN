@@ -2,21 +2,51 @@ import time
 import torch
 import os
 import json
+import wandb
 from tqdm import tqdm
-from utils.color import colorstr
-from utils.make_dataset import get_data_loader
+from dataset import VideoDataset
+from utils.get_norm import get_norm
 from utils.get_model import get_model
+from utils.color import colorstr
+from torch.utils.data import DataLoader
+
+
+def get_data_loader(model_name, num_frames, num_classes, batch_size):
+    cpus = os.cpu_count()
+
+    # dataset_path = os.path.join(os.getcwd(), "tikharm-dataset")
+    dataset_path = os.path.join(
+        "/kaggle/input/tikharm-dataset")  # For kaggle only
+
+    train_path = os.path.join(dataset_path, 'Dataset', 'train')
+    val_path = os.path.join(dataset_path, 'Dataset', 'val')
+
+    transform = get_norm(model_name)
+
+    train_dataset = VideoDataset(
+        train_path, num_frames=num_frames, transform=transform, num_classes=num_classes)
+    val_dataset = VideoDataset(
+        val_path, num_frames=num_frames, transform=transform, num_classes=num_classes)
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=cpus)
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, num_workers=cpus)
+
+    return train_loader, val_loader
 
 
 def train(opts):
+    wandb.init(project="KLTN")
+
     train_loader, val_loader = get_data_loader(
-        opts.num_frames, opts.target_size, opts.num_classes, opts.batch_size)
+        opts.model, opts.num_frames, opts.num_classes, opts.batch_size)
 
     model = get_model(opts.model, opts.num_classes,
-                      opts.num_frames, opts.target_size)
+                      opts.num_frames)
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trained_model, history = train_model(model, train_loader, val_loader, criterion,
@@ -37,20 +67,10 @@ def train(opts):
     with open(history_file, 'w') as f:
         json.dump(history, f)
 
+    wandb.finish()
+
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10):
-    """
-    Trains the given model using the provided data loaders, criterion, and optimizer.
-
-    Args:
-        model (torch.nn.Module): The neural network model to be trained.
-        train_loader (torch.utils.data.DataLoader): DataLoader for the training dataset.
-        val_loader (torch.utils.data.DataLoader): DataLoader for the validation dataset.
-        criterion (torch.nn.Module): Loss function to be used during training.
-        optimizer (torch.optim.Optimizer): Optimizer to be used for updating model parameters.
-        device (str, optional): Device to run the training on, either "cuda" or "cpu". Default is "cuda".
-        num_epochs (int, optional): Number of epochs to train the model. Default is 10.
-    """
     print(colorstr("white", "bold",
           f"Training {model.__class__.__name__} model !"))
     print(colorstr("red", "bold",
@@ -62,7 +82,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
         "train_acc": [],
         "val_loss": [],
         "val_acc": [],
-        "lr": []
     }
     best_val_acc = 0.0
 
@@ -125,6 +144,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
                 desc = ("%35s" + "%15.6g" * 2) % (mem, epoch_loss, epoch_acc)
                 _phase.set_description(desc)
 
+                wandb.log({
+                    f"{phase}_loss": epoch_loss,
+                    f"{phase}_acc": epoch_acc.item(),
+                    "epoch": epoch,
+                })
+
             if phase == "train":
                 history["train_loss"].append(epoch_loss)
                 history["train_acc"].append(epoch_acc.item())
@@ -132,7 +157,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
                 history["val_loss"].append(epoch_loss)
                 history["val_acc"].append(epoch_acc.item())
 
-                # Cập nhật best validation accuracy
                 if epoch_acc > best_val_acc:
                     best_val_acc = epoch_acc
                     history["best_epoch"] = epoch
