@@ -5,6 +5,7 @@ from torch import nn
 class ViViT(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
+
         self.vivit = VivitForVideoClassification.from_pretrained(
             "google/vivit-b-16x2-kinetics400")
         self.vivit.classifier = nn.Linear(

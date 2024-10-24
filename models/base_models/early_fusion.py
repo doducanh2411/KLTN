@@ -6,8 +6,6 @@ from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 class EarlyFusion(nn.Module):
     def __init__(self, num_classes=4, num_input_channels=32):
         super().__init__()
-        self.num_classes = num_classes
-        self.input_channels = num_input_channels
 
         self.cnn = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V2)
         self.cnn.features[0][0] = nn.Conv2d(num_input_channels * 3, 32, kernel_size=(

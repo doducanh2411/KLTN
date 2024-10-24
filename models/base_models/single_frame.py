@@ -7,7 +7,6 @@ from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 class SingleFrame(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
-        self.num_classes = num_classes
 
         self.cnn = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V2)
         self.cnn.classifier[1] = nn.Linear(

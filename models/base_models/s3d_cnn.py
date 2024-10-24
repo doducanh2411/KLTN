@@ -7,7 +7,6 @@ from torchvision.models.video import s3d, S3D_Weights
 class S3D(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
-        self.num_classes = num_classes
 
         self.cnn = s3d(weights=S3D_Weights.KINETICS400_V1)
         self.cnn.avgpool = nn.AvgPool3d(
