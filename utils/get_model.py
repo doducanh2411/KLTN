@@ -1,4 +1,5 @@
 from models.base_models import SingleFrame, EarlyFusion, LateFusion, CNNLSTM, S3D, ViViT
+from models.mutimodal_models import MultiModalViViT, MultiModalS3D, MultiModalCNNLSTM
 
 
 def get_model(model_name, num_classes, num_frames=None):
@@ -14,3 +15,9 @@ def get_model(model_name, num_classes, num_frames=None):
         return S3D(num_classes)
     elif model_name == 'vivit':
         return ViViT(num_classes)
+    elif model_name == 'multimodal_vivit':
+        return MultiModalViViT(num_classes)
+    elif model_name == 'multimodal_s3d':
+        return MultiModalS3D(num_classes)
+    elif model_name == 'multimodal_cnn_lstm':
+        return MultiModalCNNLSTM(num_classes)

@@ -1,16 +1,15 @@
+from torchvision.models.video import s3d, S3D_Weights
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from torchvision.models.video import s3d, S3D_Weights
 
 
 class S3D(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
+        self.num_classes = num_classes
 
         self.cnn = s3d(weights=S3D_Weights.KINETICS400_V1)
-        self.cnn.avgpool = nn.AvgPool3d(
-            kernel_size=(2, 3, 3), stride=1, padding=0)
         self.cnn.classifier = torch.nn.Sequential(
             torch.nn.Dropout(p=0.2, inplace=False),
             torch.nn.Conv3d(1024, 512, kernel_size=(
@@ -23,7 +22,7 @@ class S3D(nn.Module):
         )
 
     def forward(self, x_3d):
-        # (BS, T, C, H, W) -> (BS, C, T, H, W)
+        # (bs, T, C, H, W) => (bs, C, T, H, W)
         x_3d = x_3d.permute(0, 2, 1, 3, 4)
 
         x = self.cnn(x_3d)
