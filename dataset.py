@@ -1,13 +1,14 @@
 import os
 import torch
 import gc
+import json
 from torch.utils.data import Dataset
 from decord import VideoReader
 from PIL import Image
 
 
 class VideoDataset(Dataset):
-    def __init__(self, root_dir, num_frames=32, transform=None, num_classes=4):
+    def __init__(self, root_dir, num_frames=32, transform=None, num_classes=4, captions=None):
         """
         Initialize the dataset.
 
@@ -24,6 +25,11 @@ class VideoDataset(Dataset):
 
         self.video_files = []
         self.labels = []
+        self.captions = {}
+
+        if captions is not None and os.path.exists(captions):
+            with open(captions, 'r') as f:
+                self.captions = json.load(f)
 
         for label, class_name in enumerate(os.listdir(root_dir)):
             class_folder = os.path.join(root_dir, class_name)
@@ -74,4 +80,6 @@ class VideoDataset(Dataset):
         video_path = self.video_files[idx]
         label = self.labels[idx]
         video = self._read_frames(video_path)
-        return video, label
+        caption = self.captions.get(video_path, "")
+
+        return video, label, caption

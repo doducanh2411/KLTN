@@ -11,7 +11,7 @@ from utils.color import colorstr
 from torch.utils.data import DataLoader
 
 
-def get_data_loader(model_name, num_frames, num_classes, batch_size):
+def get_data_loader(model_name, num_frames, num_classes, batch_size, multimodal):
     cpus = os.cpu_count()
 
     # dataset_path = os.path.join(os.getcwd(), "tikharm-dataset")
@@ -23,10 +23,21 @@ def get_data_loader(model_name, num_frames, num_classes, batch_size):
 
     transform = get_norm(model_name)
 
+    train_captions = None
+    val_captions = None
+
+    print('multimodal', multimodal)
+
+    if multimodal:
+        train_captions = os.path.join(
+            os.getcwd(), 'captions', 'train_caption.json')
+        val_captions = os.path.join(
+            os.getcwd(), 'captions', 'val_caption.json')
+
     train_dataset = VideoDataset(
-        train_path, num_frames=num_frames, transform=transform, num_classes=num_classes)
+        train_path, num_frames=num_frames, transform=transform, num_classes=num_classes, captions=train_captions)
     val_dataset = VideoDataset(
-        val_path, num_frames=num_frames, transform=transform, num_classes=num_classes)
+        val_path, num_frames=num_frames, transform=transform, num_classes=num_classes, captions=val_captions)
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=cpus)
@@ -40,7 +51,7 @@ def train(opts):
     wandb.init(project="KLTN")
 
     train_loader, val_loader = get_data_loader(
-        opts.model, opts.num_frames, opts.num_classes, opts.batch_size)
+        opts.model, opts.num_frames, opts.num_classes, opts.batch_size, opts.multimodal)
 
     model = get_model(opts.model, opts.num_classes,
                       opts.num_frames)
@@ -50,7 +61,7 @@ def train(opts):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trained_model, history = train_model(model, train_loader, val_loader, criterion,
-                                         optimizer, device, num_epochs=opts.epochs)
+                                         optimizer, device, num_epochs=opts.epochs, multimodal=opts.multimodal)
 
     # Save model, optimizer, and history
     output_dir = 'output'
@@ -70,7 +81,7 @@ def train(opts):
     wandb.finish()
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10):
+def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10, multimodal=False):
     print(colorstr("white", "bold",
           f"Training {model.__class__.__name__} model !"))
     print(colorstr("red", "bold",
@@ -117,14 +128,23 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
                 unit="batch",
             )
 
-            for videos, labels in _phase:
+            for batch in _phase:
+                if multimodal:
+                    videos, labels, captions = batch
+                    captions = [caption[0] for caption in captions]
+                else:
+                    videos, labels, _ = batch
+
                 videos = videos.to(device)
                 labels = labels.to(device)
 
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == "train"):
-                    outputs = model(videos)
+                    if multimodal:
+                        outputs = model(videos, captions)
+                    else:
+                        outputs = model(videos)
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 

@@ -27,9 +27,9 @@ def get_norm(model_name):
                   std=[0.5, 0.5, 0.5]),
     ])
 
-    if model_name == 'single_frame' or model_name == 'early_fusion' or model_name == 'late_fusion' or model_name == 'cnn_lstm':
+    if model_name == 'single_frame' or model_name == 'early_fusion' or model_name == 'late_fusion' or model_name == 'cnn_lstm' or model_name == 'multimodal_cnn_lstm':
         return mobileNet_transform
-    elif model_name == 's3d':
+    elif model_name == 's3d' or model_name == 'multimodal_s3d':
         return s3d_transform
-    elif model_name == 'vivit':
+    elif model_name == 'vivit' or model_name == 'multimodal_vivit':
         return vivit_transform

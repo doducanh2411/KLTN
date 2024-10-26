@@ -14,7 +14,12 @@ def parse_opts():
         action='store_true',
         help='Train the model.'
     )
-
+    parser.add_argument(
+        '--multimodal',
+        type=bool,
+        default=False,
+        help='Training multimodal model.'
+    )
     parser.add_argument(
         '--model',
         type=str,
