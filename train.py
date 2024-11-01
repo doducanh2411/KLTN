@@ -4,6 +4,7 @@ import os
 import json
 import wandb
 from tqdm import tqdm
+import torch_xla.core.xla_model as xm
 from dataset import VideoDataset
 from utils.get_norm import get_norm
 from utils.get_model import get_model
@@ -13,20 +14,14 @@ from torch.utils.data import DataLoader
 
 def get_data_loader(model_name, num_frames, num_classes, batch_size, multimodal):
     cpus = os.cpu_count()
-
-    # dataset_path = os.path.join(os.getcwd(), "tikharm-dataset")
-    dataset_path = os.path.join(
-        "/kaggle/input/tikharm-dataset")  # For kaggle only
+    dataset_path = os.path.join("/kaggle/input/tikharm-dataset")
 
     train_path = os.path.join(dataset_path, 'Dataset', 'train')
     val_path = os.path.join(dataset_path, 'Dataset', 'val')
-
     transform = get_norm(model_name)
 
     train_captions = None
     val_captions = None
-
-    print('multimodal', multimodal)
 
     if multimodal:
         train_captions = os.path.join(
@@ -34,10 +29,10 @@ def get_data_loader(model_name, num_frames, num_classes, batch_size, multimodal)
         val_captions = os.path.join(
             os.getcwd(), 'captions', 'val_caption.json')
 
-    train_dataset = VideoDataset(
-        train_path, num_frames=num_frames, transform=transform, num_classes=num_classes, captions=train_captions)
-    val_dataset = VideoDataset(
-        val_path, num_frames=num_frames, transform=transform, num_classes=num_classes, captions=val_captions)
+    train_dataset = VideoDataset(train_path, num_frames=num_frames,
+                                 transform=transform, num_classes=num_classes, captions=train_captions)
+    val_dataset = VideoDataset(val_path, num_frames=num_frames,
+                               transform=transform, num_classes=num_classes, captions=val_captions)
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=cpus)
@@ -49,30 +44,25 @@ def get_data_loader(model_name, num_frames, num_classes, batch_size, multimodal)
 
 def train(opts):
     wandb.init(project="KLTN")
-
     train_loader, val_loader = get_data_loader(
         opts.model, opts.num_frames, opts.num_classes, opts.batch_size, opts.multimodal)
 
-    model = get_model(opts.model, opts.num_classes,
-                      opts.num_frames)
-
+    model = get_model(opts.model, opts.num_classes, opts.num_frames)
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = xm.xla_device()  # Set TPU device
 
-    trained_model, history = train_model(model, train_loader, val_loader, criterion,
-                                         optimizer, device, num_epochs=opts.epochs, multimodal=opts.multimodal)
+    trained_model, history = train_model_tpu(
+        model, train_loader, val_loader, criterion, optimizer, device=device, num_epochs=opts.epochs, multimodal=opts.multimodal)
 
-    # Save model, optimizer, and history
     output_dir = 'output'
     os.makedirs(output_dir, exist_ok=True)
-
     model_class_name = trained_model.__class__.__name__
 
-    torch.save(trained_model.state_dict(),
-               f'{output_dir}/{model_class_name}_model.pth')
-    torch.save(optimizer.state_dict(),
-               f'{output_dir}/{model_class_name}_optimizer.pth')
+    xm.save(trained_model.state_dict(),
+            f'{output_dir}/{model_class_name}_model.pth')
+    xm.save(optimizer.state_dict(),
+            f'{output_dir}/{model_class_name}_optimizer.pth')
 
     history_file = f'{output_dir}/{model_class_name}_history.json'
     with open(history_file, 'w') as f:
@@ -81,117 +71,78 @@ def train(opts):
     wandb.finish()
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device="cuda", num_epochs=10, multimodal=False):
+def train_model_tpu(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=10, multimodal=False):
     print(colorstr("white", "bold",
-          f"Training {model.__class__.__name__} model !"))
-    print(colorstr("red", "bold",
-          f"Model has {sum(p.numel() for p in model.parameters() if p.requires_grad):,} trainable parameters."))
-
-    since = time.time()
-    history = {
-        "train_loss": [],
-        "train_acc": [],
-        "val_loss": [],
-        "val_acc": [],
-    }
-    best_val_acc = 0.0
-
+          f"Training {model.__class__.__name__} model on TPU!"))
+    # Wrap the model for TPU parallelism
     model.to(device)
+    best_val_acc = 0.0
+    history = {"train_loss": [], "train_acc": [],
+               "val_loss": [], "val_acc": []}
 
-    for epoch in range(num_epochs):
-        print(colorstr(f"Epoch {epoch}/{num_epochs - 1}:"))
+    def train_loop_fn(loader, phase):
+        running_loss, running_corrects, running_items = 0.0, 0, 0
+        loader = tqdm(
+            loader, desc=f"{phase.capitalize()} Progress", unit="batch")
 
-        for phase in ["train", "val"]:
+        for batch in loader:
+            # Set the mode here based on phase
             if phase == "train":
-                print(
-                    colorstr("yellow", "bold", "\n%20s" + "%15s" * 3)
-                    % ("Training: ", "gpu_mem", "loss", "acc")
-                )
                 model.train()
             else:
-                print(
-                    colorstr("green", "bold", "\n%20s" + "%15s" * 3)
-                    % ("Eval: ", "gpu_mem", "loss", "acc")
-                )
                 model.eval()
 
-            running_items = 0.0
-            running_loss = 0.0
-            running_corrects = 0
-
-            data_loader = train_loader if phase == "train" else val_loader
-
-            _phase = tqdm(
-                data_loader,
-                total=len(data_loader),
-                bar_format="{desc} {percentage:>7.0f}%|{bar:10}{r_bar}{bar:-10b}",
-                unit="batch",
-            )
-
-            for batch in _phase:
-                if multimodal:
-                    videos, labels, captions = batch
-                    captions = [caption[0] for caption in captions]
-                else:
-                    videos, labels, _ = batch
-
-                videos = videos.to(device)
-                labels = labels.to(device)
-
-                optimizer.zero_grad()
-
-                with torch.set_grad_enabled(phase == "train"):
-                    if multimodal:
-                        outputs = model(videos, captions)
-                    else:
-                        outputs = model(videos)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
-
-                    if phase == "train":
-                        loss.backward()
-                        optimizer.step()
-
-                running_items += videos.size(0)
-                running_loss += loss.item() * videos.size(0)
-                running_corrects += torch.sum(preds == labels.data)
-
-                epoch_loss = running_loss / running_items
-                epoch_acc = running_corrects.double() / running_items
-
-                mem = f"{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB"
-
-                desc = ("%35s" + "%15.6g" * 2) % (mem, epoch_loss, epoch_acc)
-                _phase.set_description(desc)
-
-                wandb.log({
-                    f"{phase}_loss": epoch_loss,
-                    f"{phase}_acc": epoch_acc.item(),
-                    "epoch": epoch,
-                })
-
-            if phase == "train":
-                history["train_loss"].append(epoch_loss)
-                history["train_acc"].append(epoch_acc.item())
+            if multimodal:
+                videos, labels, captions = batch
+                captions = [caption for caption in captions]
             else:
-                history["val_loss"].append(epoch_loss)
-                history["val_acc"].append(epoch_acc.item())
+                videos, labels, _ = batch
 
-                if epoch_acc > best_val_acc:
-                    best_val_acc = epoch_acc
-                    history["best_epoch"] = epoch
+            videos = videos.to(device)
+            labels = labels.to(device)
 
-                print(f"Best val Acc: {best_val_acc:.4f}")
+            optimizer.zero_grad()
 
-    time_elapsed = time.time() - since
-    history["INFO"] = (
-        "Training complete in {:.0f}h {:.0f}m {:.0f}s with {} epochs. Best val Acc: {:.4f}".format(
-            time_elapsed // 3600,
-            (time_elapsed % 3600) // 60,
-            time_elapsed % 60,
-            num_epochs,
-            best_val_acc,
-        )
-    )
+            with torch.set_grad_enabled(phase == "train"):
+                if multimodal:
+                    outputs = model(videos, captions)
+                else:
+                    outputs = model(videos)
+                _, preds = torch.max(outputs, 1)
+                loss = criterion(outputs, labels)
 
+                if phase == "train":
+                    loss.backward()
+                    xm.optimizer_step(optimizer)  # Sync TPU cores
+
+            running_loss += loss.item() * videos.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+            running_items += videos.size(0)
+
+            epoch_loss = running_loss / running_items
+            epoch_acc = running_corrects.double() / running_items
+            loader.set_postfix(loss=epoch_loss, acc=epoch_acc.item())
+
+        return running_loss / running_items, running_corrects.double() / running_items
+
+    for epoch in range(num_epochs):
+        for phase in ["train", "val"]:
+            # Remove global model.train() and model.eval()
+            loader = train_loader if phase == "train" else val_loader
+            epoch_loss, epoch_acc = train_loop_fn(loader, phase)
+
+            history[f"{phase}_loss"].append(epoch_loss)
+            history[f"{phase}_acc"].append(epoch_acc.item())
+
+            if phase == "val" and epoch_acc > best_val_acc:
+                best_val_acc = epoch_acc
+                history["best_epoch"] = epoch
+
+            wandb.log({f"{phase}_loss": epoch_loss,
+                      f"{phase}_acc": epoch_acc.item(), "epoch": epoch})
+
+            print(
+                f"{phase.capitalize()} - Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss:.4f}, Acc: {epoch_acc:.4f}")
+
+    print(f"Training complete. Best Validation Accuracy: {best_val_acc:.4f}")
     return model, history
