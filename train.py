@@ -57,7 +57,7 @@ def train(opts):
                       opts.num_frames)
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
+    optimizer = torch.optim.AdamW(model.parameters())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trained_model, history = train_model(model, train_loader, val_loader, criterion,
