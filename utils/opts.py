@@ -45,16 +45,26 @@ def parse_opts():
         help='Number of frames to sample from each video.'
     )
     parser.add_argument(
-        '--target_size',
-        type=int,
-        default=112,
-        help='Target size for the video frames.'
-    )
-    parser.add_argument(
         '--num_classes',
         type=int,
         default=10,
         help='Number of classes in the dataset.'
+    )
+    parser.add_argument(
+        '--resume',
+        type=bool,
+        default=False,
+        help='Resume training from a checkpoint.'
+    )
+    parser.add_argument(
+        '--path_to_model',
+        type=str,
+        help='Resume training from a checkpoint.'
+    )
+    parser.add_argument(
+        '--path_to_optimizer',
+        type=str,
+        help='Resume training from a checkpoint.'
     )
 
     opts = parser.parse_args()
@@ -64,5 +74,12 @@ def parse_opts():
         parser.print_help()
         print("\nError: You must specify either --make_dataset or --train.")
         sys.exit(1)
+
+    if opts.resume:
+        if not opts.path_to_model or not opts.path_to_optimizer:
+            parser.print_help()
+            print(
+                "\nError: You must specify --path_to_model and --path_to_optimizer when --resume is True.")
+            sys.exit(1)
 
     return opts

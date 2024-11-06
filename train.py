@@ -60,6 +60,25 @@ def train(opts):
     optimizer = torch.optim.AdamW(model.parameters())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    if opts.resume:
+        if opts.path_to_model and os.path.exists(opts.path_to_model):
+            model.load_state_dict(torch.load(
+                opts.path_to_model, weights_only=True, map_location="cuda:0"))
+            print(f"Loaded model state from {opts.path_to_model}")
+
+        if opts.path_to_optimizer and os.path.exists(opts.path_to_optimizer):
+            optimizer.load_state_dict(torch.load(
+                opts.path_to_optimizer, weights_only=True, map_location="cuda:0"))
+            print(f"Loaded optimizer state from {opts.path_to_optimizer}")
+
+            # Move each optimizer state to the correct device
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(device)
+
+    model = model.to(device)
+
     trained_model, history = train_model(model, train_loader, val_loader, criterion,
                                          optimizer, device, num_epochs=opts.epochs, multimodal=opts.multimodal)
 
@@ -95,8 +114,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
         "val_acc": [],
     }
     best_val_acc = 0.0
-
-    model.to(device)
 
     for epoch in range(num_epochs):
         print(colorstr(f"Epoch {epoch}/{num_epochs - 1}:"))
