@@ -6,7 +6,7 @@ def get_model(model_name, num_classes, num_frames=None):
     if model_name == 'single_frame':
         return SingleFrame(num_classes)
     elif model_name == 'early_fusion':
-        return EarlyFusion(num_classes)
+        return EarlyFusion(num_classes, num_input_channels=num_frames)
     elif model_name == 'late_fusion':
         return LateFusion(num_classes)
     elif model_name == 'cnn_lstm':
