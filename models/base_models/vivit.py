@@ -1,13 +1,14 @@
-from transformers import VivitForVideoClassification
+from transformers import VivitForVideoClassification, VivitConfig
 from torch import nn
+import torch.nn.functional as F
 
 
 class ViViT(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
 
-        self.vivit = VivitForVideoClassification.from_pretrained(
-            "google/vivit-b-16x2-kinetics400")
+        self.config = VivitConfig(image_size=112, num_frames=32)
+        self.vivit = VivitForVideoClassification(config=self.config)
         self.vivit.classifier = nn.Linear(
             in_features=768, out_features=num_classes, bias=True)
 
