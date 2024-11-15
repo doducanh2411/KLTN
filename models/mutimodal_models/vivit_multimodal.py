@@ -4,7 +4,7 @@ from transformers import VivitForVideoClassification, BertModel, AutoTokenizer
 
 
 class MultiModalViViT(nn.Module):
-    def __init__(self, num_classes=4, freeze_bert=True):
+    def __init__(self, num_classes=4):
         super().__init__()
 
         self.vivit = VivitForVideoClassification.from_pretrained(
@@ -15,10 +15,6 @@ class MultiModalViViT(nn.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(
             "bert-base-uncased")
         self.bert = BertModel.from_pretrained("bert-base-uncased")
-
-        if freeze_bert:
-            for param in self.bert.parameters():
-                param.requires_grad = False
 
         self.fc = nn.Linear(768 + 768, num_classes)
 

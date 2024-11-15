@@ -21,7 +21,7 @@ def get_norm(model_name):
 
     vivit_transform = Compose([
         Resize(224),
-        CenterCrop(224),
+        CenterCrop(112),
         ToTensor(),
         Normalize(mean=[0.5, 0.5, 0.5],
                   std=[0.5, 0.5, 0.5]),
