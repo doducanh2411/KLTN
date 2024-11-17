@@ -5,6 +5,7 @@ from .cnn_lstm import CNNLSTM
 from .s3d_cnn import S3D
 from .vivit import ViViT
 from .swin import Swin
+from .timesformer import Timesformer
 
 __all__ = ['SingleFrame', 'EarlyFusion',
-           'LateFusion', 'CNNLSTM', 'S3D', 'ViViT', 'Swin']
+           'LateFusion', 'CNNLSTM', 'S3D', 'ViViT', 'Swin', 'Timesformer']
