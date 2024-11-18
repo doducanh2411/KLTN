@@ -1,4 +1,4 @@
-from models.base_models import SingleFrame, EarlyFusion, LateFusion, CNNLSTM, S3D, ViViT, Swin, Timesformer
+from models.base_models import SingleFrame, EarlyFusion, LateFusion, CNNLSTM, S3D, ViViT, Swin, Timesformer, VideoMAE
 from models.mutimodal_models import MultiModalViViT, MultiModalS3D, MultiModalCNNLSTM
 
 
@@ -25,3 +25,5 @@ def get_model(model_name, num_classes, num_frames=None):
         return Swin(num_classes)
     elif model_name == 'timesformer':
         return Timesformer(num_classes)
+    elif model_name == 'videomae':
+        return VideoMAE(num_classes)
