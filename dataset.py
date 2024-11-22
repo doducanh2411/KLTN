@@ -3,8 +3,10 @@ import torch
 import gc
 import json
 from torch.utils.data import Dataset
-from decord import VideoReader
+from decord import VideoReader, AudioReader
 from PIL import Image
+from transformers import AutoFeatureExtractor
+import numpy as np
 
 
 class VideoDataset(Dataset):
@@ -22,6 +24,10 @@ class VideoDataset(Dataset):
         self.num_frames = num_frames
         self.num_classes = num_classes
         self.transform = transform
+        self.sample_rate = 16000
+        self.audio_transform = AutoFeatureExtractor.from_pretrained(
+            "MIT/ast-finetuned-audioset-10-10-0.4593"
+        )
 
         self.video_files = []
         self.labels = []
@@ -43,6 +49,7 @@ class VideoDataset(Dataset):
         return len(self.video_files)
 
     def _read_frames(self, video_path):
+        # Process video frames
         vr = VideoReader(video_path)
         video_frames_count = len(vr)
 
@@ -72,14 +79,32 @@ class VideoDataset(Dataset):
 
         video = torch.stack(frames_list)
 
+        # Process audio
+        ar = None
+        try:
+            ar = AudioReader(
+                video_path, sample_rate=self.sample_rate, mono=True)
+            audio_numpy = ar[:].asnumpy()
+            audio = audio_numpy.reshape(-1)
+            audio_features = self.audio_transform(
+                audio, return_tensors="pt", sampling_rate=self.sample_rate
+            )
+            audio_tensor = audio_features['input_values'].squeeze(0)
+        except Exception as e:
+            audio_tensor = torch.zeros(1024, 128)
+
+        # Clean up
         del vr
+        if ar is not None:
+            del ar
         gc.collect()
-        return video
+
+        return video, audio_tensor
 
     def __getitem__(self, idx):
         video_path = self.video_files[idx]
         label = self.labels[idx]
-        video = self._read_frames(video_path)
+        video, audio = self._read_frames(video_path)
         caption = self.captions.get(video_path, "")
 
-        return video, label, caption
+        return video, audio, label, caption

@@ -147,10 +147,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
 
             for batch in _phase:
                 if multimodal:
-                    videos, labels, captions = batch
+                    videos, audio, labels, captions = batch
+                    audio = audio.to(device)
                     captions = [caption[0] for caption in captions]
                 else:
-                    videos, labels, _ = batch
+                    videos, _, labels, _ = batch
 
                 videos = videos.to(device)
                 labels = labels.to(device)
@@ -159,7 +160,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device="c
 
                 with torch.set_grad_enabled(phase == "train"):
                     if multimodal:
-                        outputs = model(videos, captions)
+                        outputs = model(videos, captions, audio)
                     else:
                         outputs = model(videos)
                     _, preds = torch.max(outputs, 1)
