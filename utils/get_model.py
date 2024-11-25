@@ -1,5 +1,6 @@
 from models.base_models import SingleFrame, EarlyFusion, LateFusion, CNNLSTM, S3D, ViViT, Swin, Timesformer, VideoMAE
 from models.mutimodal_models import MultiModalViViT, MultiModalS3D, MultiModalCNNLSTM, MultiModalLateFusionTextAudio
+from models.attention_multimodal_models import AttentionMultiModalCNNLSTM, AttentionMultiModalEarlyFusion, AttentionMultiModalLateFusion, AttentionMultiModalS3D, AttentionMultiModalViViT
 
 
 def get_model(model_name, num_classes, num_frames=None):
@@ -29,3 +30,13 @@ def get_model(model_name, num_classes, num_frames=None):
         return VideoMAE(num_classes)
     elif model_name == 'multimodal_late_fusion':
         return MultiModalLateFusionTextAudio(num_classes)
+    elif model_name == 'attention_cnn_lstm':
+        return AttentionMultiModalCNNLSTM(num_classes)
+    elif model_name == 'attention_early_fusion':
+        return AttentionMultiModalEarlyFusion(num_classes)
+    elif model_name == 'attention_late_fusion':
+        return AttentionMultiModalLateFusion(num_classes)
+    elif model_name == 'attention_s3d':
+        return AttentionMultiModalS3D(num_classes)
+    elif model_name == 'attention_vivit':
+        return AttentionMultiModalViViT(num_classes)
